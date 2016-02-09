@@ -71,13 +71,17 @@ type FakeService(port) =
   
   member this.Uri = Uri this.Url
   
-  member __.Start() = 
+  member __.Start() =
     let cts = new CancellationTokenSource()
-    let serverConfig = { defaultConfig with bindings = [ HttpBinding.mkSimple HTTP "0.0.0.0" port ] }
+    
+    let serverConfig = 
+      { defaultConfig with bindings = [ HttpBinding.mkSimple HTTP "0.0.0.0" port ]
+                           cancellationToken = cts.Token }
+    
     let l, s = 
       startWebServerAsync serverConfig 
         (request (Handlers.requestHandler requests.Add findResponse setResponse requestReceived.Trigger))
-    Async.Start(s, cts.Token)
+    Async.Start s
     Async.RunSynchronously l |> ignore
     webApp <- { new IDisposable with
                   member __.Dispose() = cts.Cancel() }

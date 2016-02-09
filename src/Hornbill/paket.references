@@ -1,4 +1,2 @@
-Microsoft.Owin.Host.HttpListener
-Microsoft.Owin
-Microsoft.Owin.Hosting
 FSharp.Core
+Suave

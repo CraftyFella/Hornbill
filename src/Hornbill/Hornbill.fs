@@ -3,7 +3,6 @@
 open System.Collections.Generic
 open System
 open System.Text.RegularExpressions
-open System.IO
 
 type internal StatusCode = int
 
@@ -24,8 +23,8 @@ type Request =
   { Method : Method
     Path : string
     Body : string
-    Headers : IDictionary<string, string array>
-    Query : IDictionary<string, string array> }
+    Headers : IDictionary<string, string>
+    Query : IDictionary<string, string> }
 
 [<AutoOpen>]
 module private ResponseHelpers = 
@@ -60,13 +59,13 @@ type Response =
   | BodyAndHeaders of StatusCode * Body * Headers
   | Responses of Response list
   | Dlg of (Request -> Response)
+
   static member WithHeaders(statusCode, [<ParamArray>] headers) = Headers(statusCode, headers |> Array.map parseHeader)
   static member WithHeaders(statusCode, headers) = Headers(statusCode, headers |> mapHeaders)
   static member WithStatusCode statusCode = StatusCode statusCode
   static member WithBody(statusCode, body) = Body(statusCode, body)
   static member WithBodyAndHeaders(statusCode, body, headers) = BodyAndHeaders(statusCode, body, headers |> mapHeaders)
-  static member WithBodyAndHeaders(statusCode, body, [<ParamArray>] headers) = 
-    BodyAndHeaders(statusCode, body, headers |> Array.map parseHeader)
+  static member WithBodyAndHeaders(statusCode, body, [<ParamArray>] headers) = BodyAndHeaders(statusCode, body, headers |> Array.map parseHeader)
   
   static member WithResponses responses = 
     responses
@@ -74,7 +73,3 @@ type Response =
     |> Responses
   
   static member WithDelegate(func : Func<Request, Response>) = Dlg func.Invoke
-  [<Obsolete "Use FakeService.AddResponsesFromText">]
-  static member WithRawResponse response = parseResponse response |> Response.WithBodyAndHeaders
-  [<Obsolete "Use FakeService.AddResponsesFromFile">]
-  static member WithFile path = File.ReadAllText path |> Response.WithRawResponse

@@ -8,7 +8,7 @@ open System.Threading
 open ResponsesParser
 
 let createFakeService() = 
-  let fakeService = new FakeService(0)
+  let fakeService = new FakeService()
   fakeService.Start() |> ignore
   let httpClient = new HttpClient(BaseAddress = fakeService.Uri)
   fakeService, httpClient
@@ -34,6 +34,7 @@ let dlg() =
   let fakeService, httpClient = createFakeService()
   Response.withDelegate (fun _ -> Response.withStatusCode 200) |> fakeService.AddResponse "/foo" Method.GET
   httpClient.GetAsync("/foo").Result.StatusCode == HttpStatusCode.OK
+  fakeService.Stop()
 
 [<Test>]
 let evnt() = 
@@ -44,6 +45,7 @@ let evnt() =
     if x.Path = "/foo" then autoResetEvent.Set() |> ignore)
   httpClient.GetAsync("/foo").Result.StatusCode == HttpStatusCode.OK
   autoResetEvent.WaitOne 1000 == true
+  fakeService.Stop()
 
 [<TestCase("GET")>]
 [<TestCase("POST")>]

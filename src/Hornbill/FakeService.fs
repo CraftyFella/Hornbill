@@ -5,18 +5,22 @@ open System.Net.Sockets
 open System.Net
 open System.Collections.Generic
 open System.Text.RegularExpressions
-open Microsoft.Owin.Hosting
 open System.IO
+open Suave
+open System.Threading
 
-type FakeService(port) =
-  let responses = Dictionary<_, _>()
-  let requests = ResizeArray<_>()
-  let tryFindKey path methd = responses.Keys |> Seq.tryFind (fun (p, m) -> m = methd && Regex.IsMatch(path, p, RegexOptions.IgnoreCase))
+type FakeService(port) = 
+  let responses = Dictionary<string * Method, Response>()
+  let requests = ResizeArray<Request>()
+  let tryFindKey path methd = 
+    responses.Keys |> Seq.tryFind (fun (p, m) -> m = methd && Regex.IsMatch(path, p, RegexOptions.IgnoreCase))
   let mutable url = ""
   let requestReceived = Event<Request>()
   
   let findResponse (path, methd) = 
-    let path = if Regex.IsMatch(path, ":/[^/]") then path.Replace(":/", "://") else path
+    let path = 
+      if Regex.IsMatch(path, ":/[^/]") then path.Replace(":/", "://")
+      else path
     match tryFindKey path methd with
     | Some key -> Some responses.[key]
     | _ -> None
@@ -32,18 +36,19 @@ type FakeService(port) =
       (l, (l.LocalEndpoint :?> IPEndPoint).Port) |> fun (l, p) -> 
         l.Stop()
         p
-
-  let port = if port = 0 then findPort() else port
+  
+  let port = 
+    if port = 0 then findPort()
+    else port
   
   let mutable webApp = 
     { new IDisposable with
         member __.Dispose() = () }
   
   new() = new FakeService 0
-  
   member __.OnRequestReceived(f : Action<Request>) = requestReceived.Publish.Add f.Invoke
   
-  member __.AddResponse (path : string) verb response =
+  member __.AddResponse (path : string) verb response = 
     let formatter : Printf.StringFormat<_> = 
       match path.StartsWith "/", path.EndsWith "$" with
       | false, false -> "/%s$"
@@ -51,14 +56,13 @@ type FakeService(port) =
       | true, false -> "%s$"
       | _ -> "%s"
     responses.Add((sprintf formatter path, verb), response)
-
-  member this.AddResponsesFromText text =
-   for parsedRequest in ResponsesParser.parse text do
-      let response = ResponsesParser.mapToResponse parsedRequest
-      this.AddResponse parsedRequest.Path parsedRequest.Method response 
   
-  member this.AddResponsesFromFile filePath =
-    File.ReadAllText filePath |> this.AddResponsesFromText
+  member this.AddResponsesFromText text = 
+    for parsedRequest in ResponsesParser.parse text do
+      let response = ResponsesParser.mapToResponse parsedRequest
+      this.AddResponse parsedRequest.Path parsedRequest.Method response
+  
+  member this.AddResponsesFromFile filePath = File.ReadAllText filePath |> this.AddResponsesFromText
   
   member __.Url = 
     match url with
@@ -67,15 +71,18 @@ type FakeService(port) =
   
   member this.Uri = Uri this.Url
   
-  member __.Start() =
-    let createHost =
-      fun name -> sprintf "http://%s:%i" name port
-    url <- createHost "localhost"
-    webApp <- WebApp.Start(createHost "*", Middleware.app requests.Add findResponse setResponse requestReceived.Trigger)
+  member __.Start() = 
+    let cts = new CancellationTokenSource()
+    let serverConfig = { defaultConfig with bindings = [ HttpBinding.mkSimple HTTP "0.0.0.0" port ] }
+    let l, s = 
+      startWebServerAsync serverConfig 
+        (request (Handlers.requestHandler requests.Add findResponse setResponse requestReceived.Trigger))
+    Async.Start(s, cts.Token)
+    Async.RunSynchronously l |> ignore
+    webApp <- { new IDisposable with
+                  member __.Dispose() = cts.Cancel() }
+    url <- sprintf "http://localhost:%i" port
     url
-  
-  [<Obsolete"Use Start()">]
-  member this.Host() = this.Start()
   
   member __.Stop() = webApp.Dispose()
   member __.Requests = requests

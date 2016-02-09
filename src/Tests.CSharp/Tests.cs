@@ -14,7 +14,7 @@ namespace Tests.CSharp
     {
         static HttpClient HttpClient(string uri)
         {
-            return new HttpClient {BaseAddress = new Uri(uri)};
+            return new HttpClient { BaseAddress = new Uri(uri) };
         }
 
         [Test]
@@ -36,7 +36,7 @@ namespace Tests.CSharp
             using (var httpClient = HttpClient(fakeService.Start()))
             {
                 fakeService.AddResponse("/foo/1234", Method.GET, Response.WithStatusCode(200));
-                fakeService.AddResponse("/foo/[\\d]+/boom?this=that", Method.GET, Response.WithStatusCode(500));
+                fakeService.AddResponse("/foo/[\\d]+/boom\\?this=that", Method.GET, Response.WithStatusCode(500));
                 Assert.That(httpClient.GetAsync("/foo/1234/boom?this=that").Result.StatusCode,
                     Is.EqualTo(HttpStatusCode.InternalServerError));
             }
@@ -55,30 +55,13 @@ namespace Tests.CSharp
             }
         }
 
-
-        [Test]
-        public void RawResponse()
-        {
-            using (var fakeService = new FakeService())
-            using (var httpClient = HttpClient(fakeService.Start()))
-            {
-                fakeService.AddResponse("/boom", Method.GET, Response.WithRawResponse(Resources.rawResponse));
-                var result = httpClient.GetAsync("/boom").Result;
-                var body = result.Content.ReadAsStringAsync().Result;
-                Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-                var expectedBody = $"Body{Environment.NewLine}Text";
-                Assert.That(body, Is.EqualTo(expectedBody));
-                Assert.That(result.Headers.GetValues("foo").First(), Is.EqualTo("bar"));
-            }
-        }
-
         [Test]
         public void Delegate()
         {
             using (var fakeService = new FakeService())
             using (var httpClient = HttpClient(fakeService.Start()))
             {
-                fakeService.AddResponse("/test?foo=bar", Method.GET,
+                fakeService.AddResponse("/test\\?foo=bar", Method.GET,
                     Response.WithDelegate(
                         x =>
                             x.Query["foo"].Contains("bar") ? Response.WithStatusCode(200) : Response.WithStatusCode(404)));
@@ -94,7 +77,7 @@ namespace Tests.CSharp
             using (var httpClient = HttpClient(fakeService.Start()))
             {
                 fakeService.AddResponse("/test", Method.GET,
-                    Response.WithHeaders(200, new Dictionary<string, string> {["foo"] = "bar"}));
+                    Response.WithHeaders(200, new Dictionary<string, string> { ["foo"] = "bar" }));
                 var result = httpClient.GetAsync("/test").Result;
                 Assert.That(result.Headers.First().Key, Is.EqualTo("foo"));
                 Assert.That(result.Headers.First().Value.First(), Is.EqualTo("bar"));
@@ -134,7 +117,7 @@ namespace Tests.CSharp
             using (var httpClient = HttpClient(fakeService.Start()))
             {
                 fakeService.AddResponse("/", Method.GET,
-                    Response.WithResponses(new[] {Response.WithStatusCode(200), Response.WithStatusCode(500)}));
+                    Response.WithResponses(new[] { Response.WithStatusCode(200), Response.WithStatusCode(500) }));
                 Assert.That(httpClient.GetAsync("/").Result.StatusCode, Is.EqualTo(HttpStatusCode.OK));
                 Assert.That(httpClient.GetAsync("/").Result.StatusCode, Is.EqualTo(HttpStatusCode.InternalServerError));
                 Assert.That(httpClient.GetAsync("/").Result.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -149,13 +132,13 @@ namespace Tests.CSharp
             {
                 const string link = "http://foo/bar";
                 fakeService.AddResponse("/headers", Method.GET,
-                    Response.WithBodyAndHeaders(200, "body", new Dictionary<string, string> {["Link"] = link}));
-                httpClient.DefaultRequestHeaders.Add("Foo", "Bar");
+                    Response.WithBodyAndHeaders(200, "body", new Dictionary<string, string> { ["Link"] = link }));
+                httpClient.DefaultRequestHeaders.Add("foo", "Bar");
                 var result = httpClient.GetAsync("/headers").Result;
                 Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.OK));
                 Assert.AreEqual(link, result.Headers.GetValues("Link").Single());
-                var linkHeader = fakeService.Requests.First().Headers.Single(x => x.Key == "Foo").Value;
-                Assert.That(linkHeader, Is.EqualTo(new[] {"Bar"}));
+                var linkHeader = fakeService.Requests.First().Headers.Single(x => x.Key == "foo").Value;
+                Assert.That(linkHeader, Is.EqualTo("Bar"));
             }
         }
 
@@ -182,26 +165,9 @@ namespace Tests.CSharp
                 fakeService.AddResponse("/", Method.GET, Response.WithStatusCode(200));
                 fakeService.AddResponse("/", Method.HEAD, Response.WithStatusCode(404));
                 Assert.That(httpClient.GetAsync("/").Result.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-                var httpRequestMessage = new HttpRequestMessage {Method = HttpMethod.Head};
+                var httpRequestMessage = new HttpRequestMessage { Method = HttpMethod.Head };
                 Assert.That(httpClient.SendAsync(httpRequestMessage).Result.StatusCode,
                     Is.EqualTo(HttpStatusCode.NotFound));
-            }
-        }
-
-        [Test]
-        public void File()
-        {
-            using (var fakeService = new FakeService())
-            using (var httpClient = HttpClient(fakeService.Start()))
-            {
-                var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources\\rawresponse.txt");
-                fakeService.AddResponse("/", Method.GET, Response.WithFile(path));
-                var result = httpClient.GetAsync("/").Result;
-                var body = result.Content.ReadAsStringAsync().Result;
-                Assert.That(result.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-                var expectedBody = $"Body{Environment.NewLine}Text";
-                Assert.That(body, Is.EqualTo(expectedBody));
-                Assert.That(result.Headers.GetValues("foo").First(), Is.EqualTo("bar"));
             }
         }
 

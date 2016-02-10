@@ -23,8 +23,9 @@ let responseHandler ctx =
     |> writeResponseBody body
   | _ -> ctx |> withStatusCode 404
 
-let requestHandler storeRequest findResponse setResponse requestReceived httpRequest ctx = 
-  async { 
+let requestHandler storeRequest findResponse setResponse requestReceived ctx = 
+  async {
+    let httpRequest = ctx.request
     let methd = Enum.Parse(typeof<Method>, httpRequest.``method`` |> string) :?> Method
     let key = httpRequest.url.PathAndQuery, methd
     let request = httpRequest |> toRequest

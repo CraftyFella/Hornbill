@@ -79,8 +79,7 @@ type FakeService(port) =
                            cancellationToken = cts.Token }
     
     let l, s = 
-      startWebServerAsync serverConfig 
-        (request (Handlers.requestHandler requests.Add findResponse setResponse requestReceived.Trigger))
+      startWebServerAsync serverConfig (Handlers.requestHandler requests.Add findResponse setResponse requestReceived.Trigger)
     Async.Start s
     Async.RunSynchronously l |> ignore
     webApp <- { new IDisposable with
